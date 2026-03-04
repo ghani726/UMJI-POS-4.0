@@ -66,7 +66,7 @@ const BulkEditModal: React.FC<{
         const finalUpdateData: Partial<Product> = {};
         fieldsToUpdate.forEach(field => {
             if (updateData[field] !== undefined) {
-                finalUpdateData[field] = updateData[field];
+                (finalUpdateData as any)[field] = updateData[field];
             }
         });
 
@@ -112,7 +112,7 @@ const BulkEditModal: React.FC<{
             />
             <label className="w-40 font-medium">{label}</label>
             <div className={`flex-1 ${!fieldsToUpdate.has(field) ? 'opacity-50' : ''}`}>
-                {React.cloneElement(input as React.ReactElement, { disabled: !fieldsToUpdate.has(field) })}
+                {React.cloneElement(input as React.ReactElement<any>, { disabled: !fieldsToUpdate.has(field) })}
             </div>
         </div>
     );

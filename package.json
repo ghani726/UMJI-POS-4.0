@@ -10,20 +10,21 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "uuid": "^13.0.0",
-    "recharts": "^3.3.0",
     "date-fns": "^4.1.0",
-    "react-hot-toast": "^2.6.0",
     "dexie": "^4.2.1",
-    "react-router-dom": "^7.9.4",
-    "lucide-react": "^0.546.0",
     "dexie-react-hooks": "^4.2.0",
+    "html2canvas": "^1.4.1",
+    "jsbarcode": "^3.11.6",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
-    "html2canvas": "^1.4.1",
-    "jsbarcode": "^3.11.6"
+    "lucide-react": "^0.546.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.9.4",
+    "recharts": "^3.3.0",
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
