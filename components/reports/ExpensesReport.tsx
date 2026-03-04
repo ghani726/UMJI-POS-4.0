@@ -90,8 +90,8 @@ export const ExpensesReport: React.FC<ExpensesReportProps> = ({ dateRange, curre
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><TrendingDown className="text-red-500" /> Expense Distribution</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie data={data.categoryCards} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
                                     {data.categoryCards.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
@@ -105,8 +105,8 @@ export const ExpensesReport: React.FC<ExpensesReportProps> = ({ dateRange, curre
 
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><PieChartIcon className="text-primary-500" /> Top Expense Categories</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart data={data.categoryCards}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />

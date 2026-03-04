@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../services/db';
 import { Package, Archive, TrendingUp, TrendingDown, Filter, Layers, Building, Tag, BarChart2 } from 'lucide-react';
@@ -77,12 +77,14 @@ export const InventoryReport: React.FC<InventoryReportProps> = ({ currency, isPr
             }))
         };
 
-        if (onDataReady) {
-            onDataReady(result);
-        }
-
         return result;
-    }, [filterBrand, filterCategory, filterSupplier, categories, brands, suppliers, onDataReady]);
+    }, [filterBrand, filterCategory, filterSupplier, categories, brands, suppliers]);
+
+    useEffect(() => {
+        if (data && onDataReady) {
+            onDataReady(data);
+        }
+    }, [data, onDataReady]);
 
     if (!data) return <div className="p-20 text-center">Loading inventory data...</div>;
 
@@ -129,8 +131,8 @@ export const InventoryReport: React.FC<InventoryReportProps> = ({ currency, isPr
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Package className="text-primary-500" /> Stock by Category</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart data={data.categoryData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />

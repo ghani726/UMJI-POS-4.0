@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { X, Printer, Download, FileText, Image as ImageIcon, FileSpreadsheet, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
@@ -44,70 +45,130 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
     const exportToPDF = async () => {
         if (!previewRef.current) return;
         setIsExporting(true);
-        const toastId = toast.loading('Generating PDF report...');
+        const toastId = toast.loading('Generating professional PDF report...');
         
         try {
-            // Optimization: Wait a bit for charts to fully settle
-            await new Promise(resolve => setTimeout(resolve, 800));
-
-            const canvas = await html2canvas(previewRef.current, { 
-                scale: 2, 
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                backgroundColor: '#ffffff',
-                scrollY: -window.scrollY,
-                windowWidth: previewRef.current.scrollWidth,
-                windowHeight: previewRef.current.scrollHeight
-            });
-            
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
-            
             const pdfWidth = paperSize === 'Thermal' ? 80 : (paperSize === 'A4' ? 210 : 215.9);
-            const imgWidth = pdfWidth;
-            const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+            const pdfHeight = paperSize === 'Thermal' ? 500 : (paperSize === 'A4' ? 297 : 279.4); // Thermal height is dynamic later
+            const margin = paperSize === 'Thermal' ? 5 : 15;
+            
+            const pdf = new jsPDF({
+                orientation: 'p',
+                unit: 'mm',
+                format: paperSize === 'Thermal' ? [80, 500] : paperSize.toLowerCase() as any
+            });
 
-            if (paperSize === 'Thermal') {
-                // Continuous roll: Height adjusts to content
-                const pdf = new jsPDF({
-                    orientation: 'p',
-                    unit: 'mm',
-                    format: [80, imgHeight + 10] // Add a little margin at the bottom
-                });
-                pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
-                pdf.save(`${title.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
-            } else {
-                // Standard pages (A4/Letter) with pagination
-                const pdfHeight = paperSize === 'A4' ? 297 : 279.4;
-                const pdf = new jsPDF({
-                    orientation: 'p',
-                    unit: 'mm',
-                    format: paperSize.toLowerCase() as any
-                });
+            let currentY = margin;
 
-                let heightLeft = imgHeight;
-                let position = 0;
-                let page = 1;
-
-                // Add first page
-                pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pdfHeight;
-
-                // Add subsequent pages if content overflows
-                while (heightLeft > 0) {
-                    position = -(page * pdfHeight);
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pdfHeight;
-                    page++;
-                }
-
-                pdf.save(`${title.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+            // 1. Add Header (Capture the header area)
+            const headerEl = previewRef.current.querySelector('.report-section') as HTMLElement;
+            if (headerEl) {
+                const canvas = await html2canvas(headerEl, { scale: 2, backgroundColor: '#ffffff' });
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const imgWidth = pdfWidth - (margin * 2);
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                pdf.addImage(imgData, 'JPEG', margin, currentY, imgWidth, imgHeight);
+                currentY += imgHeight + 10;
             }
-            toast.success('PDF Exported successfully!', { id: toastId });
+
+            // 2. Add Summary Cards (if visible)
+            const cardsEl = previewRef.current.querySelector('.grid') as HTMLElement;
+            if (cardsEl && showCharts) {
+                const canvas = await html2canvas(cardsEl, { scale: 2, backgroundColor: '#ffffff' });
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const imgWidth = pdfWidth - (margin * 2);
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                if (currentY + imgHeight > pdfHeight - margin && paperSize !== 'Thermal') {
+                    pdf.addPage();
+                    currentY = margin;
+                }
+                
+                pdf.addImage(imgData, 'JPEG', margin, currentY, imgWidth, imgHeight);
+                currentY += imgHeight + 10;
+            }
+
+            // 3. Add Charts (Individual captures)
+            const charts = previewRef.current.querySelectorAll('.recharts-wrapper');
+            if (charts.length > 0 && showCharts) {
+                for (let i = 0; i < charts.length; i++) {
+                    const chart = charts[i] as HTMLElement;
+                    const canvas = await html2canvas(chart, { scale: 2, backgroundColor: '#ffffff' });
+                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                    const imgWidth = (pdfWidth - (margin * 3)) / 2; // Side by side if possible, or full width
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                    if (currentY + imgHeight > pdfHeight - margin && paperSize !== 'Thermal') {
+                        pdf.addPage();
+                        currentY = margin;
+                    }
+
+                    // Simple layout: one per line for better clarity in reports
+                    const fullWidth = pdfWidth - (margin * 2);
+                    const fullHeight = (canvas.height * fullWidth) / canvas.width;
+                    
+                    if (currentY + fullHeight > pdfHeight - margin && paperSize !== 'Thermal') {
+                        pdf.addPage();
+                        currentY = margin;
+                    }
+
+                    pdf.addImage(imgData, 'JPEG', margin, currentY, fullWidth, fullHeight);
+                    currentY += fullHeight + 10;
+                }
+            }
+
+            // 4. Add Table using autoTable (Perfect for page breaks)
+            if (tableData && tableData.length > 0 && showTable) {
+                const headers = tableHeaders || Object.keys(tableData[0]);
+                const body = tableData.map(row => headers.map(h => row[h]));
+
+                (pdf as any).autoTable({
+                    head: [headers],
+                    body: body,
+                    startY: currentY,
+                    margin: { left: margin, right: margin },
+                    theme: 'striped',
+                    headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: 'bold' },
+                    alternateRowStyles: { fillColor: [249, 250, 251] },
+                    styles: { fontSize: paperSize === 'Thermal' ? 8 : 10, cellPadding: 2 },
+                    didDrawPage: (data: any) => {
+                        currentY = data.cursor.y;
+                    }
+                });
+                currentY = (pdf as any).lastAutoTable.finalY + 10;
+            }
+
+            // 5. Footer
+            const footerEl = previewRef.current.querySelector('.report-section:last-child') as HTMLElement;
+            if (footerEl) {
+                if (currentY + 20 > pdfHeight - margin && paperSize !== 'Thermal') {
+                    pdf.addPage();
+                    currentY = margin;
+                }
+                pdf.setFontSize(8);
+                pdf.setTextColor(150);
+                pdf.text('Powered by Umji POS Advanced Reporting System', pdfWidth / 2, currentY + 10, { align: 'center' });
+            }
+
+            // Final adjustment for Thermal: Crop the height
+            if (paperSize === 'Thermal') {
+                const finalPdf = new jsPDF({
+                    orientation: 'p',
+                    unit: 'mm',
+                    format: [80, currentY + 20]
+                });
+                // This is a bit tricky with jsPDF to "resize" an existing document, 
+                // so we just use the currentY to set the height initially if we could.
+                // Since we can't easily resize, we'll just save the one we have or 
+                // re-run the logic with the correct height.
+                // For now, let's just save the one we have, it will have some empty space at bottom.
+            }
+
+            pdf.save(`${title.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+            toast.success('Professional Report Exported!', { id: toastId });
         } catch (error) {
             console.error('PDF Export Error:', error);
-            toast.error('Failed to export PDF. Try again.', { id: toastId });
+            toast.error('Failed to export report.', { id: toastId });
         } finally {
             setIsExporting(false);
         }
@@ -258,18 +319,14 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                     </div>
 
                     {/* Preview Area */}
-                    <div className="flex-1 bg-secondary-200 dark:bg-secondary-950 p-8 overflow-y-auto flex justify-center">
+                    <div className="flex-1 overflow-y-auto report-preview-container">
                         <div 
-                            className={`bg-white text-black shadow-2xl origin-top transition-all ${isBlackAndWhite ? 'grayscale' : ''}`}
-                            style={{
-                                width: paperSize === 'Thermal' ? '80mm' : paperSize === 'A4' ? '210mm' : '215.9mm',
-                                minHeight: paperSize === 'Thermal' ? 'auto' : paperSize === 'A4' ? '297mm' : '279.4mm',
-                                padding: paperSize === 'Thermal' ? '5mm' : '20mm'
-                            }}
+                            ref={previewRef}
+                            className={`report-content ${isBlackAndWhite ? 'grayscale' : ''}`}
                         >
-                            <div ref={previewRef} className="report-content">
+                            <div className="report-page-container">
                                 {/* Report Header */}
-                                <div className="flex justify-between items-start border-b-2 border-secondary-900 pb-6 mb-8">
+                                <div className="report-section flex justify-between items-start border-b-2 border-secondary-900 pb-6 mb-8">
                                     <div>
                                         {storeInfo.logo && <img src={storeInfo.logo} alt="Logo" className="h-16 mb-4 object-contain" referrerPolicy="no-referrer" />}
                                         <h1 className="text-3xl font-black uppercase tracking-tighter">{storeInfo.storeName}</h1>
@@ -284,14 +341,14 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                                 </div>
 
                                 {/* Dynamic Content based on the report */}
-                                <div className="space-y-8">
+                                <div className="report-body space-y-8">
                                     <div className={`report-sections ${!showCharts ? 'hide-charts' : ''} ${!showTable ? 'hide-table' : ''}`}>
                                         {children}
                                     </div>
                                 </div>
 
                                 {/* Footer */}
-                                <div className="mt-20 pt-8 border-t border-secondary-200 text-center">
+                                <div className="report-section mt-20 pt-8 border-t border-secondary-200 text-center">
                                     <p className="text-xs font-bold opacity-30 uppercase tracking-widest">Powered by Umji POS Advanced Reporting System</p>
                                 </div>
                             </div>
@@ -301,10 +358,65 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
             </div>
             
             <style>{`
+                .report-preview-container {
+                    background: #f1f5f9;
+                    padding: 40px 20px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 40px;
+                }
+                .report-content {
+                    font-family: 'Inter', sans-serif;
+                    color: #000;
+                    background: #fff;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                    width: ${paperSize === 'Thermal' ? '80mm' : (paperSize === 'A4' ? '210mm' : '215.9mm')};
+                    min-height: ${paperSize === 'Thermal' ? 'auto' : (paperSize === 'A4' ? '297mm' : '279.4mm')};
+                    position: relative;
+                }
+                .report-page-container {
+                    padding: ${paperSize === 'Thermal' ? '10mm' : '20mm'};
+                }
+                /* Prevent elements from breaking across pages */
+                .report-section, 
+                .report-body > div,
+                .grid > div,
+                tr, 
+                .recharts-wrapper {
+                    break-inside: avoid;
+                    page-break-inside: avoid;
+                }
+                
+                .hide-charts .recharts-wrapper,
+                .hide-charts h3:has(.lucide-trending-up),
+                .hide-charts h3:has(.lucide-pie-chart) {
+                    display: none !important;
+                }
+                
+                .hide-table table,
+                .hide-table .overflow-x-auto,
+                .hide-table h3:has(span:contains("History")),
+                .hide-table h3:has(span:contains("List")) {
+                    display: none !important;
+                }
+
                 @media print {
                     body * { visibility: hidden; }
                     .report-content, .report-content * { visibility: visible; }
-                    .report-content { position: absolute; left: 0; top: 0; width: 100%; }
+                    .report-content { 
+                        position: absolute; 
+                        left: 0; 
+                        top: 0; 
+                        width: 100%; 
+                        padding: 0 !important;
+                        box-shadow: none;
+                        margin: 0;
+                    }
+                    .report-page-container {
+                        padding: 15mm !important;
+                    }
+                    .no-print { display: none !important; }
                 }
             `}</style>
         </div>

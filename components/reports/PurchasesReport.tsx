@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../services/db';
 import { ShoppingBag, Banknote, TrendingDown, Filter, Search, Building, Calendar } from 'lucide-react';
@@ -68,12 +68,14 @@ export const PurchasesReport: React.FC<PurchasesReportProps> = ({ dateRange, cur
             }))
         };
 
-        if (onDataReady) {
-            onDataReady(result);
-        }
-
         return result;
-    }, [dateRange, selectedSupplierId, searchTerm, onDataReady]);
+    }, [dateRange, selectedSupplierId, searchTerm]);
+
+    useEffect(() => {
+        if (data && onDataReady) {
+            onDataReady(data);
+        }
+    }, [data, onDataReady]);
 
     if (!data) return <div className="p-20 text-center">Loading purchase data...</div>;
 
@@ -146,8 +148,8 @@ export const PurchasesReport: React.FC<PurchasesReportProps> = ({ dateRange, cur
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Calendar className="text-primary-500" /> Purchase Trend</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <LineChart data={data.dailyData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
@@ -161,8 +163,8 @@ export const PurchasesReport: React.FC<PurchasesReportProps> = ({ dateRange, cur
 
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Building className="text-emerald-500" /> Purchases by Supplier</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart data={data.supplierData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />

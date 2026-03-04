@@ -234,7 +234,7 @@ const DashboardPage: React.FC = () => {
                 <div className="lg:col-span-2 bg-secondary-50 dark:bg-secondary-900 p-6 rounded-2xl shadow-sm">
                     <h3 className="font-semibold mb-4 text-secondary-800 dark:text-secondary-200">Sales Overview</h3>
                     {salesChartData && salesChartData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={300}>
+                        <ResponsiveContainer width="100%" height={300} minWidth={0}>
                             <LineChart data={salesChartData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />
                                 <XAxis dataKey="name" tick={{fontSize: 12}} />
@@ -252,7 +252,7 @@ const DashboardPage: React.FC = () => {
                 </div>
                  <div className="bg-secondary-50 dark:bg-secondary-900 p-6 rounded-2xl shadow-sm">
                     <h3 className="font-semibold mb-4 text-secondary-800 dark:text-secondary-200">Sales by Category</h3>
-                     <ResponsiveContainer width="100%" height={300}>
+                     <ResponsiveContainer width="100%" height={300} minWidth={0}>
                         {categorySalesData && categorySalesData.length > 0 ? (
                            <BarChart data={categorySalesData} layout="vertical" margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />

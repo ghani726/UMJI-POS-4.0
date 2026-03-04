@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../services/db';
 import { TrendingUp, TrendingDown, Package, CreditCard, Users, Building, Banknote, Archive, ShoppingCart, BarChart2, PieChart as PieChartIcon } from 'lucide-react';
@@ -75,12 +75,14 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ dateRange, currenc
             ]
         };
 
-        if (onDataReady) {
-            onDataReady(result);
-        }
-
         return result;
-    }, [dateRange, onDataReady]);
+    }, [dateRange]);
+
+    useEffect(() => {
+        if (data && onDataReady) {
+            onDataReady(data);
+        }
+    }, [data, onDataReady]);
 
     if (!data) return <div className="p-20 text-center animate-pulse">Calculating overview...</div>;
 
@@ -109,8 +111,8 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ dateRange, currenc
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                         <TrendingUp className="text-primary-500" /> Sales & Profit Trend
                     </h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <AreaChart data={data.chartData}>
                                 <defs>
                                     <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
@@ -136,8 +138,8 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ dateRange, currenc
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                         <PieChartIcon className="text-primary-500" /> Revenue Distribution
                     </h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie
                                     data={data.profitDistribution}

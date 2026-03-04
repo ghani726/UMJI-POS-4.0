@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Printer, Calendar, ChevronRight, LayoutDashboard, ShoppingCart, Package, Banknote, Users, Building, ShoppingBag, History } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
@@ -51,15 +51,17 @@ const ReportsPage: React.FC = () => {
 
     const [reportData, setReportData] = useState<{ tableData?: any[], tableHeaders?: string[] }>({});
 
+    const handleDataReady = useCallback((data: any) => {
+        if (data.tableData) {
+            setReportData({ tableData: data.tableData, tableHeaders: data.tableHeaders });
+        }
+    }, []);
+
     const renderActiveReport = (isForPreview = false) => {
         const props = { 
             dateRange, 
             currency,
-            onDataReady: isForPreview ? undefined : (data: any) => {
-                if (data.tableData) {
-                    setReportData({ tableData: data.tableData, tableHeaders: data.tableHeaders });
-                }
-            }
+            onDataReady: isForPreview ? undefined : handleDataReady
         };
 
         switch (activeTab) {

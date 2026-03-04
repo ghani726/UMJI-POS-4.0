@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../services/db';
 import type { Product } from '../../types';
@@ -92,12 +92,14 @@ export const SalesReport: React.FC<SalesReportProps> = ({ dateRange, currency, i
             }))
         };
 
-        if (onDataReady) {
-            onDataReady(result);
-        }
-
         return result;
-    }, [dateRange, filterBrand, filterCategory, filterSupplier, categories, onDataReady]);
+    }, [dateRange, filterBrand, filterCategory, filterSupplier, categories]);
+
+    useEffect(() => {
+        if (data && onDataReady) {
+            onDataReady(data);
+        }
+    }, [data, onDataReady]);
 
     if (!data) return <div className="p-20 text-center">Loading sales data...</div>;
 
@@ -144,8 +146,8 @@ export const SalesReport: React.FC<SalesReportProps> = ({ dateRange, currency, i
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Award className="text-yellow-500" /> Top 10 Products by Revenue</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart data={data.topProducts} layout="vertical">
                                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                                 <XAxis type="number" hide />
@@ -159,8 +161,8 @@ export const SalesReport: React.FC<SalesReportProps> = ({ dateRange, currency, i
 
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><PieChartIcon className="text-primary-500" /> Sales by Category</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie data={data.categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
                                     {data.categoryData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
