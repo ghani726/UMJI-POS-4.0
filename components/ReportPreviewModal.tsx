@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { X, Printer, Download, FileText, Image as ImageIcon, FileSpreadsheet, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -31,10 +31,29 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
 }) => {
     const [paperSize, setPaperSize] = useState<'A4' | 'Letter' | 'Thermal'>('A4');
     const [isBlackAndWhite, setIsBlackAndWhite] = useState(false);
+    const [showSummary, setShowSummary] = useState(true);
     const [showCharts, setShowCharts] = useState(true);
     const [showTable, setShowTable] = useState(true);
-    const [isExporting, setIsExporting] = useState(false);
+    const [showLowStock, setShowLowStock] = useState(true);
+    const [showTopItems, setShowTopItems] = useState(true);
     const previewRef = useRef<HTMLDivElement>(null);
+    const [isExporting, setIsExporting] = useState(false);
+    const [availableSections, setAvailableSections] = useState({ lowStock: false, topItems: false });
+
+    useEffect(() => {
+        if (isOpen && previewRef.current) {
+            // Small timeout to ensure children are fully rendered if they are dynamic
+            const timer = setTimeout(() => {
+                if (previewRef.current) {
+                    setAvailableSections({
+                        lowStock: previewRef.current.querySelectorAll('.report-low-stock-section').length > 0,
+                        topItems: previewRef.current.querySelectorAll('.report-top-items-section').length > 0
+                    });
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, children]);
 
     if (!isOpen) return null;
 
@@ -60,64 +79,139 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
 
             let currentY = margin;
 
-            // 1. Add Header (Capture the header area)
-            const headerEl = previewRef.current.querySelector('.report-section') as HTMLElement;
-            if (headerEl) {
-                const canvas = await html2canvas(headerEl, { scale: 2, backgroundColor: '#ffffff' });
+            const addImageToPDF = async (element: HTMLElement, width: number, spacing: number = 10) => {
+                const canvas = await html2canvas(element, { 
+                    scale: 2, 
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    useCORS: true
+                });
                 const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                const imgWidth = pdfWidth - (margin * 2);
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                pdf.addImage(imgData, 'JPEG', margin, currentY, imgWidth, imgHeight);
-                currentY += imgHeight + 10;
-            }
+                const imgHeight = (canvas.height * width) / canvas.width;
 
-            // 2. Add Summary Cards (if visible)
-            const cardsEl = previewRef.current.querySelector('.grid') as HTMLElement;
-            if (cardsEl && showCharts) {
-                const canvas = await html2canvas(cardsEl, { scale: 2, backgroundColor: '#ffffff' });
-                const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                const imgWidth = pdfWidth - (margin * 2);
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                
                 if (currentY + imgHeight > pdfHeight - margin && paperSize !== 'Thermal') {
                     pdf.addPage();
                     currentY = margin;
                 }
-                
-                pdf.addImage(imgData, 'JPEG', margin, currentY, imgWidth, imgHeight);
-                currentY += imgHeight + 10;
+
+                pdf.addImage(imgData, 'JPEG', margin, currentY, width, imgHeight);
+                currentY += imgHeight + spacing;
+                return imgHeight;
+            };
+
+            // 1. Add Header (Capture the header area)
+            if (!previewRef.current) return;
+            const headerEl = previewRef.current.querySelector('.report-section') as HTMLElement;
+            if (headerEl) {
+                await addImageToPDF(headerEl, pdfWidth - (margin * 2));
             }
 
-            // 3. Add Charts (Individual captures)
-            const charts = previewRef.current.querySelectorAll('.recharts-wrapper');
-            if (charts.length > 0 && showCharts) {
-                for (let i = 0; i < charts.length; i++) {
-                    const chart = charts[i] as HTMLElement;
-                    const canvas = await html2canvas(chart, { scale: 2, backgroundColor: '#ffffff' });
-                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                    const imgWidth = (pdfWidth - (margin * 3)) / 2; // Side by side if possible, or full width
-                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-                    if (currentY + imgHeight > pdfHeight - margin && paperSize !== 'Thermal') {
-                        pdf.addPage();
-                        currentY = margin;
-                    }
-
-                    // Simple layout: one per line for better clarity in reports
-                    const fullWidth = pdfWidth - (margin * 2);
-                    const fullHeight = (canvas.height * fullWidth) / canvas.width;
+            // 2. Add Summary Cards (INDIVIDUAL CAPTURE)
+            if (!previewRef.current) return;
+            const cardContainers = previewRef.current.querySelectorAll('.report-summary-cards');
+            if (cardContainers.length > 0 && showSummary) {
+                for (let i = 0; i < cardContainers.length; i++) {
+                    const container = cardContainers[i] as HTMLElement;
+                    const cards = Array.from(container.children) as HTMLElement[];
                     
-                    if (currentY + fullHeight > pdfHeight - margin && paperSize !== 'Thermal') {
-                        pdf.addPage();
-                        currentY = margin;
+                    const cardWidth = (pdfWidth - (margin * 2) - 10) / 2;
+                    
+                    for (let j = 0; j < cards.length; j += 2) {
+                        const card1 = cards[j];
+                        const card2 = cards[j + 1];
+                        
+                        const canvas1 = await html2canvas(card1, { scale: 2, backgroundColor: '#ffffff' });
+                        const h1 = (canvas1.height * cardWidth) / canvas1.width;
+                        
+                        let h2 = 0;
+                        let canvas2 = null;
+                        if (card2) {
+                            canvas2 = await html2canvas(card2, { scale: 2, backgroundColor: '#ffffff' });
+                            h2 = (canvas2.height * cardWidth) / canvas2.width;
+                        }
+                        
+                        const rowHeight = Math.max(h1, h2);
+                        
+                        if (currentY + rowHeight > pdfHeight - margin && paperSize !== 'Thermal') {
+                            pdf.addPage();
+                            currentY = margin;
+                        }
+                        
+                        pdf.addImage(canvas1.toDataURL('image/jpeg', 0.95), 'JPEG', margin, currentY, cardWidth, h1);
+                        if (canvas2) {
+                            pdf.addImage(canvas2.toDataURL('image/jpeg', 0.95), 'JPEG', margin + cardWidth + 10, currentY, cardWidth, h2);
+                        }
+                        
+                        currentY += rowHeight + 5;
                     }
-
-                    pdf.addImage(imgData, 'JPEG', margin, currentY, fullWidth, fullHeight);
-                    currentY += fullHeight + 10;
+                    currentY += 5;
                 }
             }
 
-            // 4. Add Table using autoTable (Perfect for page breaks)
+            // 3. Add Low Stock Section (if exists and visible)
+            if (!previewRef.current) return;
+            const lowStockSections = previewRef.current.querySelectorAll('.report-low-stock-section');
+            if (lowStockSections.length > 0 && showLowStock) {
+                for (const section of Array.from(lowStockSections)) {
+                    await addImageToPDF(section as HTMLElement, pdfWidth - (margin * 2));
+                }
+            }
+
+            // 4. Add Top Items Section (if exists and visible)
+            if (!previewRef.current) return;
+            const topItemsSections = previewRef.current.querySelectorAll('.report-top-items-section');
+            if (topItemsSections.length > 0 && showTopItems) {
+                for (const section of Array.from(topItemsSections)) {
+                    await addImageToPDF(section as HTMLElement, pdfWidth - (margin * 2));
+                }
+            }
+
+            // 5. Add Charts (Individual captures)
+            if (!previewRef.current) return;
+            const chartSections = previewRef.current.querySelectorAll('.report-charts-section');
+            if (chartSections.length > 0 && showCharts) {
+                for (let i = 0; i < chartSections.length; i++) {
+                    const section = chartSections[i] as HTMLElement;
+                    const canvas = await html2canvas(section, { 
+                        scale: 1.5,
+                        backgroundColor: '#ffffff',
+                        useCORS: true,
+                        logging: false,
+                        onclone: (clonedDoc) => {
+                            if (!clonedDoc) return;
+                            const el = clonedDoc.querySelectorAll('.report-charts-section')[i] as HTMLElement;
+                            if (el) {
+                                el.style.width = '100%';
+                                el.style.overflow = 'hidden';
+                                el.style.display = 'block';
+                            }
+                        }
+                    });
+                    const imgData = canvas.toDataURL('image/jpeg', 0.9);
+                    const fullWidth = pdfWidth - (margin * 2);
+                    const fullHeight = (canvas.height * fullWidth) / canvas.width;
+                    
+                    const maxHeight = (pdfHeight - (margin * 2)) * 0.6;
+                    let finalHeight = fullHeight;
+                    let finalWidth = fullWidth;
+                    
+                    if (finalHeight > maxHeight) {
+                        finalHeight = maxHeight;
+                        finalWidth = (canvas.width * finalHeight) / canvas.height;
+                    }
+
+                    if (currentY + finalHeight > pdfHeight - margin && paperSize !== 'Thermal') {
+                        pdf.addPage();
+                        currentY = margin;
+                    }
+
+                    pdf.addImage(imgData, 'JPEG', (pdfWidth - finalWidth) / 2, currentY, finalWidth, finalHeight);
+                    currentY += finalHeight + 10;
+                }
+            }
+
+            // 6. Add Table using autoTable (Perfect for page breaks)
+            if (!previewRef.current) return;
             if (tableData && tableData.length > 0 && showTable) {
                 const headers = tableHeaders || Object.keys(tableData[0]);
                 const body = tableData.map(row => headers.map(h => row[h]));
@@ -138,7 +232,8 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                 currentY = (pdf as any).lastAutoTable.finalY + 10;
             }
 
-            // 5. Footer
+            // 7. Footer
+            if (!previewRef.current) return;
             const footerEl = previewRef.current.querySelector('.report-section:last-child') as HTMLElement;
             if (footerEl) {
                 if (currentY + 20 > pdfHeight - margin && paperSize !== 'Thermal') {
@@ -202,6 +297,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
         setIsExporting(true);
         const toastId = toast.loading('Generating Image...');
         try {
+            if (!previewRef.current) return;
             const canvas = await html2canvas(previewRef.current, { 
                 scale: 1.5,
                 useCORS: true,
@@ -268,9 +364,25 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                             <h3 className="text-sm font-bold uppercase tracking-wider text-secondary-500">Include Sections</h3>
                             <div className="space-y-2">
                                 <div className="flex items-center gap-3">
+                                    <input type="checkbox" id="inc-summary" checked={showSummary} onChange={e => setShowSummary(e.target.checked)} className="w-4 h-4 rounded text-primary-600" />
+                                    <label htmlFor="inc-summary" className="text-sm">Summary Cards</label>
+                                </div>
+                                <div className="flex items-center gap-3">
                                     <input type="checkbox" id="inc-charts" checked={showCharts} onChange={e => setShowCharts(e.target.checked)} className="w-4 h-4 rounded text-primary-600" />
                                     <label htmlFor="inc-charts" className="text-sm">Charts & Visuals</label>
                                 </div>
+                                {availableSections.lowStock && (
+                                    <div className="flex items-center gap-3">
+                                        <input type="checkbox" id="inc-lowstock" checked={showLowStock} onChange={e => setShowLowStock(e.target.checked)} className="w-4 h-4 rounded text-primary-600" />
+                                        <label htmlFor="inc-lowstock" className="text-sm">Low Stock Alerts</label>
+                                    </div>
+                                )}
+                                {availableSections.topItems && (
+                                    <div className="flex items-center gap-3">
+                                        <input type="checkbox" id="inc-topitems" checked={showTopItems} onChange={e => setShowTopItems(e.target.checked)} className="w-4 h-4 rounded text-primary-600" />
+                                        <label htmlFor="inc-topitems" className="text-sm">Top Performing Items</label>
+                                    </div>
+                                )}
                                 <div className="flex items-center gap-3">
                                     <input type="checkbox" id="inc-table" checked={showTable} onChange={e => setShowTable(e.target.checked)} className="w-4 h-4 rounded text-primary-600" />
                                     <label htmlFor="inc-table" className="text-sm">Data Table</label>
@@ -342,7 +454,7 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
 
                                 {/* Dynamic Content based on the report */}
                                 <div className="report-body space-y-8">
-                                    <div className={`report-sections ${!showCharts ? 'hide-charts' : ''} ${!showTable ? 'hide-table' : ''}`}>
+                                    <div className={`report-sections ${!showSummary ? 'hide-summary' : ''} ${!showCharts ? 'hide-charts' : ''} ${!showTable ? 'hide-table' : ''} ${!showLowStock ? 'hide-low-stock' : ''} ${!showTopItems ? 'hide-top-items' : ''}`}>
                                         {children}
                                     </div>
                                 </div>
@@ -378,6 +490,19 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                 .report-page-container {
                     padding: ${paperSize === 'Thermal' ? '10mm' : '20mm'};
                 }
+                
+                .hide-summary .report-summary-cards {
+                    display: none !important;
+                }
+
+                .hide-low-stock .report-low-stock-section {
+                    display: none !important;
+                }
+
+                .hide-top-items .report-top-items-section {
+                    display: none !important;
+                }
+
                 /* Prevent elements from breaking across pages */
                 .report-section, 
                 .report-body > div,
@@ -388,9 +513,12 @@ export const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({
                     page-break-inside: avoid;
                 }
                 
+                .hide-charts .report-charts-section,
                 .hide-charts .recharts-wrapper,
                 .hide-charts h3:has(.lucide-trending-up),
-                .hide-charts h3:has(.lucide-pie-chart) {
+                .hide-charts h3:has(.lucide-pie-chart),
+                .hide-charts h3:has(.lucide-package),
+                .hide-charts h3:has(.lucide-award) {
                     display: none !important;
                 }
                 

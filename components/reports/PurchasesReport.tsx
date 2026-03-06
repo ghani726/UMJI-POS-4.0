@@ -108,7 +108,7 @@ export const PurchasesReport: React.FC<PurchasesReportProps> = ({ dateRange, cur
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="report-summary-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
@@ -145,7 +145,7 @@ export const PurchasesReport: React.FC<PurchasesReportProps> = ({ dateRange, cur
             </div>
 
             {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="report-charts-section grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Calendar className="text-primary-500" /> Purchase Trend</h3>
                     <div className="h-80 w-full">

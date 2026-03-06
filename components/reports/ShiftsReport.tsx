@@ -47,7 +47,7 @@ export const ShiftsReport: React.FC<ShiftsReportProps> = ({ dateRange, currency 
     return (
         <div className="space-y-8 animate-fadeIn">
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="report-summary-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">

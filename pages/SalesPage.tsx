@@ -1227,17 +1227,17 @@ const ReceiptContent: React.FC<{ sale: Sale & { customerPreviousBalance?: number
                     {sale.customerName && <p><strong>Customer:</strong> {sale.customerName}</p>}
                </div>
                {storeInfo?.receiptHeader && <p className="text-center text-[10px] my-2">{storeInfo.receiptHeader}</p>}
-               <hr className="my-2 border-dashed border-gray-500"/>
+               <hr className="my-2 border-dashed border-black"/>
                <table className="w-full text-left text-black"><thead><tr className="border-b border-black text-black"><th className="py-1 font-semibold">Item</th><th className="text-center font-semibold">Qty</th><th className="text-right font-semibold">Price</th><th className="text-right font-semibold">Total</th></tr></thead>
                <tbody>
-                   {sale.items.map((item, i) => (<tr key={i} className="border-b border-gray-300 text-black">
+                   {sale.items.map((item, i) => (<tr key={i} className="border-b border-black text-black">
                        <td className="py-1">
                            {item.productName} {Object.values(item.attributes).length > 0 && `(${Object.values(item.attributes).join('/')})`}
-                           {item.discount && <span className="block text-[10px] text-gray-500">Discount: {item.discount.type === 'percentage' ? `${item.discount.value}%` : `${storeInfo?.currency || '$'}${item.discount.value}`}</span>}
+                           {item.discount && <span className="block text-[10px] text-black">Discount: {item.discount.type === 'percentage' ? `${item.discount.value}%` : `${storeInfo?.currency || '$'}${item.discount.value}`}</span>}
                        </td>
                        <td className="text-center align-top py-1">{item.quantity}</td>
                        <td className="text-right align-top py-1">
-                           {item.originalPrice > item.pricePerItem && <span className="line-through text-gray-500 block text-[10px]">{item.originalPrice.toFixed(2)}</span>}
+                           {item.originalPrice > item.pricePerItem && <span className="line-through text-black block text-[10px]">{item.originalPrice.toFixed(2)}</span>}
                            {item.pricePerItem.toFixed(2)}
                        </td>
                        <td className="text-right align-top py-1">{item.totalPrice.toFixed(2)}</td>
@@ -1245,30 +1245,30 @@ const ReceiptContent: React.FC<{ sale: Sale & { customerPreviousBalance?: number
                </tbody></table>
                <div className="pt-2 text-black">
                     <p className="flex justify-between"><span>Subtotal:</span><span>{originalItemsTotal.toFixed(2)}</span></p>
-                    {itemDiscounts > 0 && <p className="flex justify-between text-red-600"><span>Item Discounts:</span><span>-{itemDiscounts.toFixed(2)}</span></p>}
-                    {invoiceDiscount > 0 && <p className="flex justify-between text-red-600"><span>Invoice Discount:</span><span>-{invoiceDiscount.toFixed(2)}</span></p>}
-                    {sale.voucherDiscount && sale.voucherDiscount > 0 ? <p className="flex justify-between text-red-600"><span>Voucher:</span><span>-{sale.voucherDiscount.toFixed(2)}</span></p> : null}
+                    {itemDiscounts > 0 && <p className="flex justify-between text-black"><span>Item Discounts:</span><span>-{itemDiscounts.toFixed(2)}</span></p>}
+                    {invoiceDiscount > 0 && <p className="flex justify-between text-black"><span>Invoice Discount:</span><span>-{invoiceDiscount.toFixed(2)}</span></p>}
+                    {sale.voucherDiscount && sale.voucherDiscount > 0 ? <p className="flex justify-between text-black"><span>Voucher:</span><span>-{sale.voucherDiscount.toFixed(2)}</span></p> : null}
                     <p className="flex justify-between font-bold text-lg border-t border-black pt-1"><span>Total:</span><span>{storeInfo?.currency}{sale.totalAmount.toFixed(2)}</span></p>
                     {sale.dueAmount && sale.dueAmount > 0 && (
-                        <div className="mt-2 pt-2 border-t border-dashed border-gray-500">
+                        <div className="mt-2 pt-2 border-t border-dashed border-black">
                             {sale.customerPreviousBalance && sale.customerPreviousBalance > 0 && (
                                 <p className="flex justify-between"><span>Previous Balance:</span><span>{storeInfo?.currency}{sale.customerPreviousBalance.toFixed(2)}</span></p>
                             )}
                             <p className="flex justify-between font-bold"><span>Amount Paid:</span><span>{storeInfo?.currency}{(sale.totalAmount - sale.dueAmount).toFixed(2)}</span></p>
-                            <p className="flex justify-between font-bold text-red-500"><span>Due this Sale:</span><span>{storeInfo?.currency}{sale.dueAmount.toFixed(2)}</span></p>
-                            <p className="flex justify-between font-bold text-red-500 text-lg border-t border-red-300 pt-1 mt-1"><span>Total Outstanding:</span><span>{storeInfo?.currency}{((sale.customerPreviousBalance || 0) + sale.dueAmount).toFixed(2)}</span></p>
-                            {sale.dueDate && <p className="text-center text-xs mt-2 text-red-500">Please pay the remaining balance by: {format(new Date(sale.dueDate), 'PP')}</p>}
+                            <p className="flex justify-between font-bold text-black"><span>Due this Sale:</span><span>{storeInfo?.currency}{sale.dueAmount.toFixed(2)}</span></p>
+                            <p className="flex justify-between font-bold text-black text-lg border-t border-black pt-1 mt-1"><span>Total Outstanding:</span><span>{storeInfo?.currency}{((sale.customerPreviousBalance || 0) + sale.dueAmount).toFixed(2)}</span></p>
+                            {sale.dueDate && <p className="text-center text-xs mt-2 text-black">Please pay the remaining balance by: {format(new Date(sale.dueDate), 'PP')}</p>}
                         </div>
                     )}
                 </div>
-                <hr className="my-2 border-dashed border-gray-500"/>
+                <hr className="my-2 border-dashed border-black"/>
                  <div className="text-black">
                     {sale.payments.map((p,i) => <p key={i} className="flex justify-between capitalize"><span>{p.method} {p.amount < 0 ? 'Refund' : ''}:</span><span>{p.amount.toFixed(2)}</span></p>)}
                     {sale.cashGiven && sale.cashGiven > 0 ? <p className="flex justify-between"><span>Cash Given:</span><span>{sale.cashGiven.toFixed(2)}</span></p> : null}
                     {sale.change && sale.change > 0 ? <p className="flex justify-between"><span>Change:</span><span>{sale.change?.toFixed(2)}</span></p> : null}
                 </div>
                {storeInfo?.receiptFooter && <p className="text-center text-sm mt-4">{storeInfo.receiptFooter}</p>}
-               {sale.note && <p className="text-center text-xs mt-4 pt-2 border-t border-dashed border-gray-400">Note: {sale.note}</p>}
+               {sale.note && <p className="text-center text-xs mt-4 pt-2 border-t border-dashed border-black">Note: {sale.note}</p>}
             </div>
         </div>
     );

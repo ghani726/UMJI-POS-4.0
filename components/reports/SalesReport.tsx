@@ -126,7 +126,7 @@ export const SalesReport: React.FC<SalesReportProps> = ({ dateRange, currency, i
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="report-summary-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {data.stats.map((stat, i) => (
                     <div key={i} className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                         <div className="flex items-center gap-4">
@@ -144,7 +144,7 @@ export const SalesReport: React.FC<SalesReportProps> = ({ dateRange, currency, i
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
+                <div className="report-top-items-section bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Award className="text-yellow-500" /> Top 10 Products by Revenue</h3>
                     <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -159,7 +159,7 @@ export const SalesReport: React.FC<SalesReportProps> = ({ dateRange, currency, i
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
+                <div className="report-charts-section bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><PieChartIcon className="text-primary-500" /> Sales by Category</h3>
                     <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%" minWidth={0}>

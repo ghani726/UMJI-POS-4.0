@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../services/db';
-import { TrendingUp, TrendingDown, Package, CreditCard, Users, Building, Banknote, Archive, ShoppingCart, BarChart2, PieChart as PieChartIcon } from 'lucide-react';
+import { TrendingUp, TrendingDown, Package, CreditCard, Users, Building, Banknote, Archive, ShoppingCart, BarChart2, PieChart as PieChartIcon, Award } from 'lucide-react';
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 
@@ -44,6 +44,15 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ dateRange, currenc
             dailyData[day].profit += (s.totalAmount - saleCogs);
         });
 
+        // Top Products
+        const productSales: Record<string, { name: string, qty: number, revenue: number }> = {};
+        sales.flatMap(s => s.items).forEach(item => {
+            if (!productSales[item.productId]) productSales[item.productId] = { name: item.productName, qty: 0, revenue: 0 };
+            productSales[item.productId].qty += Math.abs(item.quantity);
+            productSales[item.productId].revenue += item.totalPrice;
+        });
+        const topProducts = Object.values(productSales).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+
         const result = {
             cards: [
                 { title: "Total Sales", value: `${currency}${totalSales.toLocaleString()}`, icon: CreditCard, color: 'text-blue-600', bg: 'bg-blue-100' },
@@ -64,6 +73,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ dateRange, currenc
                 { name: 'Expenses', value: totalExpenses },
                 { name: 'COGS', value: cogs }
             ],
+            topProducts,
             tableHeaders: ['Metric', 'Value'],
             tableData: [
                 { Metric: 'Total Sales', Value: totalSales },
@@ -89,7 +99,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ dateRange, currenc
     return (
         <div className="space-y-8 animate-fadeIn">
             {/* Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="report-summary-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {data.cards.map((card, i) => (
                     <div key={i} className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800 hover:shadow-md transition-all group">
                         <div className="flex justify-between items-start">
@@ -107,7 +117,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ dateRange, currenc
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
+                <div className="report-charts-section bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                         <TrendingUp className="text-primary-500" /> Sales & Profit Trend
                     </h3>
@@ -134,31 +144,56 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ dateRange, currenc
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
+                <div className="report-top-items-section bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                        <PieChartIcon className="text-primary-500" /> Revenue Distribution
+                        <Award className="text-yellow-500" /> Top Performing Products
                     </h3>
-                    <div className="h-80 w-full">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                            <PieChart>
-                                <Pie
-                                    data={data.profitDistribution}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={80}
-                                    outerRadius={120}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {data.profitDistribution.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(value: number) => `${currency}${value.toLocaleString()}`} />
-                                <Legend verticalAlign="bottom" height={36}/>
-                            </PieChart>
-                        </ResponsiveContainer>
+                    <div className="space-y-4">
+                        {data.topProducts.map((item, i) => (
+                            <div key={i} className="flex justify-between items-center p-3 bg-secondary-50 dark:bg-secondary-800 rounded-xl">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 font-bold text-xs">
+                                        {i + 1}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold">{item.name}</p>
+                                        <p className="text-xs text-secondary-500">{item.qty} units sold</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-black text-primary-600">{currency}{item.revenue.toLocaleString()}</p>
+                                </div>
+                            </div>
+                        ))}
                     </div>
+                </div>
+            </div>
+
+            {/* Revenue Distribution */}
+            <div className="report-charts-section bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
+                <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                    <PieChartIcon className="text-primary-500" /> Revenue Distribution
+                </h3>
+                <div className="h-80 w-full">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                        <PieChart>
+                            <Pie
+                                data={data.profitDistribution}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={80}
+                                outerRadius={120}
+                                paddingAngle={5}
+                                dataKey="value"
+                            >
+                                {data.profitDistribution.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                            </Pie>
+                            <Tooltip formatter={(value: number) => `${currency}${value.toLocaleString()}`} />
+                            <Legend verticalAlign="bottom" height={36}/>
+                        </PieChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
         </div>

@@ -111,7 +111,7 @@ export const InventoryReport: React.FC<InventoryReportProps> = ({ currency, isPr
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="report-summary-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {data.stats.map((stat, i) => (
                     <div key={i} className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                         <div className="flex items-center gap-4">
@@ -127,9 +127,9 @@ export const InventoryReport: React.FC<InventoryReportProps> = ({ currency, isPr
                 ))}
             </div>
 
-            {/* Charts */}
+            {/* Charts & Alerts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
+                <div className="report-charts-section bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Package className="text-primary-500" /> Stock by Category</h3>
                     <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -144,7 +144,7 @@ export const InventoryReport: React.FC<InventoryReportProps> = ({ currency, isPr
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
+                <div className="report-low-stock-section bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><TrendingDown className="text-red-500" /> Low Stock Alert (Top 10)</h3>
                     <div className="space-y-4">
                         {data.lowStockItems.map((item, i) => (

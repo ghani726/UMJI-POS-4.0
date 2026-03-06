@@ -45,7 +45,7 @@ export const ExpensesReport: React.FC<ExpensesReportProps> = ({ dateRange, curre
     return (
         <div className="space-y-8 animate-fadeIn">
             {/* Main Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="report-summary-cards grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
@@ -71,7 +71,7 @@ export const ExpensesReport: React.FC<ExpensesReportProps> = ({ dateRange, curre
             </div>
 
             {/* Category Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="report-summary-cards grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {data.categoryCards.map((cat, i) => (
                     <div key={i} className="bg-secondary-50 dark:bg-secondary-800/50 p-4 rounded-xl border border-secondary-100 dark:border-secondary-800">
                         <p className="text-xs font-bold text-secondary-500 uppercase truncate">{cat.name}</p>
@@ -87,7 +87,7 @@ export const ExpensesReport: React.FC<ExpensesReportProps> = ({ dateRange, curre
             </div>
 
             {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="report-charts-section grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-secondary-900 p-6 rounded-2xl shadow-sm border border-secondary-100 dark:border-secondary-800">
                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><TrendingDown className="text-red-500" /> Expense Distribution</h3>
                     <div className="h-80 w-full">

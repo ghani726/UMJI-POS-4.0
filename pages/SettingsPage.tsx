@@ -755,10 +755,10 @@ const TestReceiptContent: React.FC<{ sale: Sale, storeInfo: StoreInfo | null, fo
                     {sale.customerName && <p><strong>Customer:</strong> {sale.customerName}</p>}
                </div>
                {storeInfo?.receiptHeader && <p className="text-center text-[10px] my-2">{storeInfo.receiptHeader}</p>}
-               <hr className="my-2 border-dashed border-gray-500"/>
+               <hr className="my-2 border-dashed border-black"/>
                <table className="w-full text-left text-black"><thead><tr className="border-b border-black text-black"><th className="py-1 font-semibold">Item</th><th className="text-center font-semibold">Qty</th><th className="text-right font-semibold">Price</th><th className="text-right font-semibold">Total</th></tr></thead>
                <tbody>
-                   {sale.items.map((item, i) => (<tr key={i} className="border-b border-gray-300 text-black">
+                   {sale.items.map((item, i) => (<tr key={i} className="border-b border-black text-black">
                        <td className="py-1">{item.productName} {Object.values(item.attributes).length > 0 && `(${Object.values(item.attributes).join('/')})`}</td>
                        <td className="text-center">{item.quantity}</td>
                        <td className="text-right">{item.pricePerItem.toFixed(2)}</td>
@@ -767,17 +767,17 @@ const TestReceiptContent: React.FC<{ sale: Sale, storeInfo: StoreInfo | null, fo
                </tbody></table>
                <div className="pt-2 text-black">
                     <p className="flex justify-between"><span>Subtotal:</span><span>{sale.subTotal.toFixed(2)}</span></p>
-                    <p className="flex justify-between text-red-600"><span>Discounts:</span><span>-{(sale.totalItemDiscount + (sale.discountOnInvoice?.type === 'flat' ? sale.discountOnInvoice.value : (sale.subTotal - sale.totalItemDiscount) * ((sale.discountOnInvoice?.value || 0)/100))).toFixed(2)}</span></p>
+                    <p className="flex justify-between text-black"><span>Discounts:</span><span>-{(sale.totalItemDiscount + (sale.discountOnInvoice?.type === 'flat' ? sale.discountOnInvoice.value : (sale.subTotal - sale.totalItemDiscount) * ((sale.discountOnInvoice?.value || 0)/100))).toFixed(2)}</span></p>
                     <p className="flex justify-between font-bold text-lg border-t border-black pt-1"><span>Total:</span><span>{storeInfo?.currency}{sale.totalAmount.toFixed(2)}</span></p>
                 </div>
-                <hr className="my-2 border-dashed border-gray-500"/>
+                <hr className="my-2 border-dashed border-black"/>
                  <div className="text-black">
                     {sale.payments.map((p,i) => <p key={i} className="flex justify-between capitalize"><span>{p.method} {p.amount < 0 ? 'Refund' : ''}:</span><span>{p.amount.toFixed(2)}</span></p>)}
                     {sale.cashGiven && sale.cashGiven > 0 ? <p className="flex justify-between"><span>Cash Given:</span><span>{sale.cashGiven.toFixed(2)}</span></p> : null}
                     {sale.change && sale.change > 0 ? <p className="flex justify-between"><span>Change:</span><span>{sale.change?.toFixed(2)}</span></p> : null}
                 </div>
                {storeInfo?.receiptFooter && <p className="text-center text-sm mt-4">{storeInfo.receiptFooter}</p>}
-               {sale.note && <p className="text-center text-xs mt-4 pt-2 border-t border-dashed border-gray-400">Note: {sale.note}</p>}
+               {sale.note && <p className="text-center text-xs mt-4 pt-2 border-t border-dashed border-black">Note: {sale.note}</p>}
             </div>
         </div>
     );
