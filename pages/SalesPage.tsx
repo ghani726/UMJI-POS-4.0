@@ -800,6 +800,23 @@ const SalesPage: React.FC = () => {
         }
     };
 
+    const handleEditPrevious = async () => {
+        if (cart.length > 0 && !window.confirm("This will discard your current cart. Are you sure?")) {
+            return;
+        }
+        try {
+            const latestSale = await db.sales.orderBy('id').reverse().first();
+            if (latestSale) {
+                handleEditSale(latestSale);
+            } else {
+                toast.error("No previous sale found.");
+            }
+        } catch (error) {
+            console.error("Failed to fetch latest sale:", error);
+            toast.error("Could not retrieve the latest sale.");
+        }
+    };
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'F1') { e.preventDefault(); searchInputRef.current?.focus(); }
@@ -846,6 +863,7 @@ const SalesPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                         {editingSaleId && <button onClick={clearSaleState} className="text-xs text-red-500 hover:underline">Cancel Edit</button>}
                         <button onClick={handleUndo} title="Undo last item (Ctrl+Z)" className="p-2 text-secondary-500 hover:bg-secondary-100 dark:hover:bg-secondary-800 rounded-full"><Undo size={18}/></button>
+                        <button onClick={handleEditPrevious} className="text-sm text-yellow-600 hover:underline">Edit Previous</button>
                         <button onClick={() => setModal('previousSales')} className="text-sm text-primary-600 hover:underline">Previous Sales</button>
                     </div>
                 </div>
