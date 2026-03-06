@@ -1,9 +1,9 @@
 // CHANGED: Implemented full CRUD for Purchases with stock management
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../services/db';
-import type { Purchase, Supplier, Product, PurchaseItem, Variant, ProductCategory, ProductOption } from '../types';
-import { Plus, Edit, Trash2, X, Search, PackagePlus, Barcode as BarcodeIcon, ChevronsRight } from 'lucide-react';
+import type { Purchase, Supplier, Product, PurchaseItem, Variant, ProductCategory, ProductOption, StoreInfo } from '../types';
+import { Plus, Edit, Trash2, X, Search, PackagePlus, Barcode as BarcodeIcon, ChevronsRight, Printer } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import { useAppContext } from '../hooks/useAppContext';
@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 const PurchasesPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
+    const [printingPurchase, setPrintingPurchase] = useState<Purchase | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
     const { storeInfo, showConfirmation } = useAppContext();
@@ -22,7 +23,7 @@ const PurchasesPage: React.FC = () => {
     const purchases = useLiveQuery(() => db.purchases.reverse().toArray(), []);
     const suppliers = useLiveQuery(() => db.suppliers.toArray(), []);
 
-    const supplierMap = useMemo(() => new Map(suppliers?.map(s => [s.id, s.name])), [suppliers]);
+    const supplierMap = useMemo(() => new Map(suppliers?.map(s => [Number(s.id), s.name])), [suppliers]);
 
     const filteredPurchases = useMemo(() => {
         if (!purchases) return [];
@@ -120,12 +121,13 @@ const PurchasesPage: React.FC = () => {
                                 <tr key={p.id} className="border-b border-secondary-200 dark:border-secondary-800">
                                     <td className="p-4">{format(p.purchaseDate, 'MMM d, yyyy')}</td>
                                     <td className="p-4 font-mono">{p.referenceNo || 'N/A'}</td>
-                                    <td className="p-4 font-medium">{supplierMap.get(p.supplierId) || 'Unknown'}</td>
+                                    <td className="p-4 font-medium">{supplierMap.get(Number(p.supplierId)) || 'Unknown'}</td>
                                     <td className="p-4">{currency}{p.totalAmount.toFixed(2)}</td>
                                     <td className="p-4">{getStatusChip(p.status)}</td>
                                     <td className="p-4">{getPaymentStatusChip(p.paymentStatus)}</td>
                                     <td className="p-4">
                                         <div className="flex gap-2">
+                                            <button onClick={() => setPrintingPurchase(p)} className="p-2 text-primary-500 hover:bg-primary-100 dark:hover:bg-primary-900/50 rounded-full" title="Print Purchase Order"><Printer size={16} /></button>
                                             <button onClick={() => openModal(p)} className="p-2 text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-full"><Edit size={16} /></button>
                                             <button onClick={() => handleDelete(p)} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-full"><Trash2 size={16} /></button>
                                         </div>
@@ -137,6 +139,7 @@ const PurchasesPage: React.FC = () => {
                 </div>
             </div>
             {isModalOpen && <PurchaseFormModal purchase={selectedPurchase} onClose={closeModal} />}
+            {printingPurchase && <PurchasePrintModal purchase={printingPurchase} onClose={() => setPrintingPurchase(null)} />}
         </div>
     );
 };
@@ -171,7 +174,11 @@ const PurchaseFormModal: React.FC<{ purchase: Purchase | null; onClose: () => vo
 
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
-        setFormData(p => ({ ...p, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+        let val: any = value;
+        if (type === 'number' || name === 'supplierId') {
+            val = parseFloat(value) || 0;
+        }
+        setFormData(p => ({ ...p, [name]: val }));
     };
 
     const handleItemChange = (index: number, field: 'quantity' | 'costPerItem', value: number) => {
@@ -688,7 +695,7 @@ const FullProductAddModal: React.FC<{ onProductAdded: (p: Product, v: Variant, q
                         <select name="supplierId" value={formData.supplierId || ''} onChange={handleChange} className="p-3 bg-secondary-100 dark:bg-secondary-800 rounded-lg"><option value="">No Supplier</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
                         <input name="lowStockThreshold" type="number" value={formData.lowStockThreshold} onChange={handleChange} required placeholder="Low Stock Threshold" className="p-3 bg-secondary-100 dark:bg-secondary-800 rounded-lg"/>
                     </fieldset>
-                    <fieldset className="p-4 border border-secondary-200 dark:border-secondary-800 rounded-lg"><legend className="px-2 font-semibold">Product Options</legend><div className="space-y-3">{formData.options.map((option, index) => (<div key={index} className="flex items-center gap-2"><input placeholder="Option Name (e.g., Color)" value={option.name} onChange={e => handleOptionChange(index, 'name', e.target.value)} className="w-1/3 p-2 bg-secondary-100 dark:bg-secondary-800 rounded-lg"/><TagInput values={option.values} onChange={newValues => handleOptionChange(index, 'values', newValues)} placeholder="Add values and press Enter or comma"/><button type="button" onClick={() => removeOption(index)} className="p-2 text-red-500 hover:bg-red-100 rounded-full"><Trash2 size={16} /></button></div>))}</div><div className="flex gap-4 mt-4"><button type="button" onClick={addOption} className="text-sm text-primary-500 hover:underline">+ Add Option</button><button type="button" onClick={handleGenerateVariants} className="flex items-center gap-2 px-4 py-2 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600"><ChevronsRight size={16}/> Generate Variants</button></div></fieldset>
+                    <fieldset className="p-4 border border-secondary-200 dark:border-secondary-800 rounded-lg"><legend className="px-2 font-semibold">Product Options</legend><div className="space-y-3">{formData.options.map((option, index) => (<div key={index} className="flex items-center gap-2"><input placeholder="Option Name (e.g., Color)" value={option.name} onChange={e => handleOptionChange(index, 'name', e.target.value)} className="w-1/3 p-2 bg-secondary-100 dark:bg-secondary-800 rounded-lg"/><TagInput values={option.values} onChange={newValues => handleOptionChange(index, 'values', newValues)} placeholder="Add values and press Enter or comma"/><button type="button" onClick={() => removeOption(index)} className="p-2 text-red-500 hover:bg-red-100 rounded-full"><X size={16} /></button></div>))}</div><div className="flex gap-4 mt-4"><button type="button" onClick={addOption} className="text-sm text-primary-500 hover:underline">+ Add Option</button><button type="button" onClick={handleGenerateVariants} className="flex items-center gap-2 px-4 py-2 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600"><ChevronsRight size={16}/> Generate Variants</button></div></fieldset>
                     <fieldset className="p-4 border border-secondary-200 dark:border-secondary-800 rounded-lg"><legend className="px-2 font-semibold">Variants ({formData.variants.length})</legend>{selectedVariants.size > 0 && <div className="p-3 mb-4 bg-primary-100 dark:bg-primary-900/50 rounded-lg flex items-center gap-4 flex-wrap animate-fadeIn"><span className="font-semibold">{selectedVariants.size} selected</span><input type="number" placeholder="Stock" onChange={e => setBulkEditData(d => ({...d, stock: parseInt(e.target.value) || 0}))} className="w-24 p-2 bg-secondary-50 dark:bg-secondary-800 rounded"/>{hasPermission('EditProductDetails') && <input type="number" placeholder="Cost" step="0.01" onChange={e => setBulkEditData(d => ({...d, costPrice: parseFloat(e.target.value) || 0}))} className="w-24 p-2 bg-secondary-50 dark:bg-secondary-800 rounded"/>}<input type="number" placeholder="Price" step="0.01" onChange={e => setBulkEditData(d => ({...d, sellingPrice: parseFloat(e.target.value) || 0}))} className="w-24 p-2 bg-secondary-50 dark:bg-secondary-800 rounded"/><button type="button" onClick={handleApplyBulkEdit} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg">Apply</button></div>}<div className="grid grid-cols-12 gap-2 items-center font-bold text-xs text-secondary-500 px-2 pb-2"><div className="col-span-1"></div><div className={hasPermission('EditProductDetails') ? "col-span-2" : "col-span-3"}>Variant</div><div className="col-span-2">SKU</div><div className="col-span-2">Barcode</div>{hasPermission('EditProductDetails') && <div className="col-span-1">Cost</div>}<div className={hasPermission('EditProductDetails') ? "col-span-2" : "col-span-3"}>Price</div><div className="col-span-1">Stock</div><div className="col-span-1 text-right"></div></div><div className="space-y-2">{formData.variants.map(v => <VariantRow key={v.id} variant={v} options={formData.options} onChange={handleVariantChange} onRemove={removeVariant} isSelected={selectedVariants.has(v.id)} onToggleSelect={handleToggleSelectVariant}/>)}</div></fieldset>
                 </div>
                 <div className="flex justify-end gap-3 pt-4 border-t border-secondary-200 dark:border-secondary-800"><button type="button" onClick={onClose} className="px-4 py-2 bg-secondary-200 dark:bg-secondary-700 rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg">Save Product</button></div>
@@ -697,5 +704,148 @@ const FullProductAddModal: React.FC<{ onProductAdded: (p: Product, v: Variant, q
     );
 };
 
+const PurchaseReceiptContent: React.FC<{ purchase: Purchase, storeInfo: StoreInfo | null, supplier: Supplier | null, forwardedRef: React.Ref<HTMLDivElement> }> = ({ purchase, storeInfo, supplier, forwardedRef }) => {
+    const currency = storeInfo?.currency || '$';
+    
+    return (
+        <div ref={forwardedRef} id="print-area" className="bg-white text-black p-8 max-w-[800px] mx-auto shadow-lg font-sans">
+            <div className="flex justify-between items-start mb-8 border-b pb-6 border-black">
+                <div>
+                    {storeInfo?.logo && <img src={storeInfo.logo} alt="logo" className="w-32 h-auto mb-4 rounded"/>}
+                    <h1 className="text-3xl font-bold uppercase tracking-tighter">{storeInfo?.storeName}</h1>
+                    <p className="text-sm opacity-80">{storeInfo?.address}</p>
+                    <p className="text-sm opacity-80">{storeInfo?.phone} | {storeInfo?.email}</p>
+                </div>
+                <div className="text-right">
+                    <h2 className="text-4xl font-black text-secondary-200 uppercase mb-2">Purchase Order</h2>
+                    <div className="space-y-1 text-sm">
+                        <p><strong>PO Number:</strong> {purchase.id}</p>
+                        <p><strong>Reference:</strong> {purchase.referenceNo || 'N/A'}</p>
+                        <p><strong>Date:</strong> {format(new Date(purchase.purchaseDate), 'PPP')}</p>
+                        <p><strong>Status:</strong> <span className="uppercase font-bold">{purchase.status}</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-12 mb-8">
+                <div>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-secondary-500 mb-3">Supplier</h3>
+                    <div className="text-sm">
+                        <p className="font-bold text-lg">{supplier?.name || 'Unknown Supplier'}</p>
+                        {supplier?.address && <p>{supplier.address}</p>}
+                        {supplier?.phone && <p>Phone: {supplier.phone}</p>}
+                        {supplier?.email && <p>Email: {supplier.email}</p>}
+                    </div>
+                </div>
+                <div>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-secondary-500 mb-3">Ship To</h3>
+                    <div className="text-sm">
+                        <p className="font-bold text-lg">{storeInfo?.storeName}</p>
+                        <p>{storeInfo?.address}</p>
+                        <p>Phone: {storeInfo?.phone}</p>
+                    </div>
+                </div>
+            </div>
+
+            <table className="w-full mb-8 border-collapse">
+                <thead>
+                    <tr className="border-y-2 border-black text-left text-xs uppercase font-black tracking-widest bg-secondary-50">
+                        <th className="py-3 px-2">Item Description</th>
+                        <th className="py-3 px-2 text-center">Qty</th>
+                        <th className="py-3 px-2 text-right">Unit Cost</th>
+                        <th className="py-3 px-2 text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody className="text-sm">
+                    {purchase.items.map((item, i) => (
+                        <tr key={i} className="border-b border-secondary-100">
+                            <td className="py-4 px-2 font-medium">{item.productName}</td>
+                            <td className="py-4 px-2 text-center">{item.quantity}</td>
+                            <td className="py-4 px-2 text-right">{currency}{item.costPerItem.toFixed(2)}</td>
+                            <td className="py-4 px-2 text-right font-bold">{currency}{(item.quantity * item.costPerItem).toFixed(2)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+
+            <div className="flex justify-end">
+                <div className="w-64 space-y-3">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-secondary-500">Subtotal:</span>
+                        <span className="font-bold">{currency}{purchase.totalAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span className="text-secondary-500">Amount Paid:</span>
+                        <span className="font-bold">{currency}{purchase.amountPaid.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xl font-black border-t-2 border-black pt-3">
+                        <span>Balance:</span>
+                        <span>{currency}{(purchase.totalAmount - purchase.amountPaid).toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+
+            {purchase.notes && (
+                <div className="mt-12 pt-6 border-t border-secondary-100">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-secondary-500 mb-2">Notes</h3>
+                    <p className="text-sm text-secondary-600 italic">{purchase.notes}</p>
+                </div>
+            )}
+
+            <div className="mt-24 flex justify-between items-end">
+                <div className="w-48 border-t border-black text-center pt-2">
+                    <p className="text-[10px] uppercase font-bold tracking-widest">Authorized Signature</p>
+                </div>
+                <div className="text-[10px] text-secondary-400 font-mono">
+                    Generated on {format(new Date(), 'PPpp')}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const PurchasePrintModal: React.FC<{ purchase: Purchase; onClose: () => void }> = ({ purchase, onClose }) => {
+    const { storeInfo } = useAppContext();
+    const suppliers = useLiveQuery(() => db.suppliers.toArray());
+    const supplier = suppliers?.find(s => s.id === purchase.supplierId) || null;
+    const receiptRef = useRef<HTMLDivElement>(null);
+
+    const handlePrint = useCallback(() => {
+        window.print();
+    }, []);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.key.toLowerCase() === 'p') {
+                e.preventDefault();
+                handlePrint();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handlePrint]);
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 animate-fadeIn">
+            <div className="bg-secondary-50 dark:bg-secondary-900 rounded-2xl p-6 w-full max-w-4xl h-[90vh] flex flex-col animate-slideInUp">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Print Purchase Order</h2>
+                    <div className="flex gap-2">
+                        <button onClick={handlePrint} className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition">
+                            <Printer size={18} /> Print
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-secondary-200 dark:hover:bg-secondary-800 rounded-full">
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto bg-secondary-200 dark:bg-secondary-800 p-8 rounded-xl">
+                    <PurchaseReceiptContent purchase={purchase} storeInfo={storeInfo} supplier={supplier} forwardedRef={receiptRef} />
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default PurchasesPage;
