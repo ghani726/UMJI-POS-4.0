@@ -419,7 +419,34 @@ const SalesPage: React.FC = () => {
 
     const cartTotal = useMemo(() => itemsTotal - invoiceDiscountValue - voucherDiscountValue + extraCharges, [itemsTotal, invoiceDiscountValue, voucherDiscountValue, extraCharges]);
 
-    const clearSaleState = useCallback(() => {
+    const clearSaleState = useCallback(async (isSuccess: boolean = false) => {
+        if (!isSuccess && editingSaleId) {
+            // Re-apply original stock and balance if edit was cancelled/discarded
+            try {
+                const originalSale = await db.sales.get(editingSaleId);
+                if (originalSale) {
+                    await (db as any).transaction('rw', [db.products, db.customers], async (tx: any) => {
+                        for (const item of originalSale.items) {
+                            const product = await tx.table('products').get(item.productId);
+                            if (product) {
+                                const newVariants = product.variants.map((v: any) => 
+                                    v.id === item.variantId ? { ...v, stock: v.stock - item.quantity } : v
+                                );
+                                await tx.table('products').update(item.productId, { variants: newVariants });
+                            }
+                        }
+                        if (originalSale.dueAmount && originalSale.customerId) {
+                            const customer = await tx.table('customers').get(originalSale.customerId);
+                            if (customer) {
+                                await tx.table('customers').update(originalSale.customerId, { dueBalance: (customer.dueBalance || 0) + originalSale.dueAmount });
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Failed to revert stock on cancel:", error);
+            }
+        }
         setCart([]);
         setDiscountOnInvoice(undefined);
         setAppliedVoucher(null);
@@ -427,9 +454,34 @@ const SalesPage: React.FC = () => {
         setReturnForSaleId(null);
         setSelectedCustomer(null);
         setEditingSaleId(null);
-    }, []);
+    }, [editingSaleId]);
 
     const handleEditSale = useCallback(async (sale: Sale) => {
+        // Revert stock and customer balance immediately to reflect correct availability during edit
+        try {
+            await (db as any).transaction('rw', [db.products, db.customers], async (tx: any) => {
+                for (const item of sale.items) {
+                    const product = await tx.table('products').get(item.productId);
+                    if (product) {
+                        const newVariants = product.variants.map((v: any) => 
+                            v.id === item.variantId ? { ...v, stock: v.stock + item.quantity } : v
+                        );
+                        await tx.table('products').update(item.productId, { variants: newVariants });
+                    }
+                }
+                if (sale.dueAmount && sale.customerId) {
+                    const customer = await tx.table('customers').get(sale.customerId);
+                    if (customer) {
+                        await tx.table('customers').update(sale.customerId, { dueBalance: (customer.dueBalance || 0) - sale.dueAmount });
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("Failed to revert stock for edit:", error);
+            toast.error("Error preparing sale for edit.");
+            return;
+        }
+
         const cartItems: CartItem[] = sale.items.map(item => ({
             productId: item.productId,
             variantId: item.variantId,
@@ -519,31 +571,11 @@ const SalesPage: React.FC = () => {
                 
                 let currentInvoiceNumber = currentStoreInfo.invoiceCounter;
                 let saleTimestamp = new Date();
-
                 if (editingSaleId) {
                     const originalSale = await tx.table('sales').get(editingSaleId);
                     if (originalSale) {
                         currentInvoiceNumber = originalSale.invoiceNumber;
                         saleTimestamp = originalSale.timestamp;
-
-                        // Revert stock for original items
-                        for (const item of originalSale.items) {
-                            const product = await tx.table('products').get(item.productId);
-                            if (product) {
-                                const newVariants = product.variants.map((v: any) => 
-                                    v.id === item.variantId ? { ...v, stock: v.stock + item.quantity } : v
-                                );
-                                await tx.table('products').update(item.productId, { variants: newVariants });
-                            }
-                        }
-
-                        // Revert customer balance if it was a credit sale
-                        if (originalSale.dueAmount && originalSale.customerId) {
-                            const customer = await tx.table('customers').get(originalSale.customerId);
-                            if (customer) {
-                                await tx.table('customers').update(originalSale.customerId, { dueBalance: (customer.dueBalance || 0) - originalSale.dueAmount });
-                            }
-                        }
                     }
                 }
 
@@ -653,7 +685,7 @@ const SalesPage: React.FC = () => {
                 throw new Error("Failed to retrieve the completed sale from the database.");
             }
     
-            clearSaleState();
+            await clearSaleState(true);
             
             toast.success('Transaction completed!');
             setLastSale({ ...completedSale, customerPreviousBalance });
@@ -687,7 +719,7 @@ const SalesPage: React.FC = () => {
             customerName: selectedCustomer?.name
         };
         await db.heldSales.add(heldSale as HeldSale);
-        clearSaleState();
+        await clearSaleState();
         toast.success(`Sale held as "${name.trim()}".`);
         closeModal();
     };
@@ -698,6 +730,7 @@ const SalesPage: React.FC = () => {
                 return;
             }
         }
+        await clearSaleState();
         setCart(heldSale.cart);
         setDiscountOnInvoice(heldSale.discountOnInvoice);
         if (heldSale.customerId) {
@@ -723,7 +756,7 @@ const SalesPage: React.FC = () => {
         }
     }
 
-    const handleLoadForReturn = useCallback((saleToLoad: Sale) => {
+    const handleLoadForReturn = useCallback(async (saleToLoad: Sale) => {
         if (!hasPermission('ProcessRefunds')) {
             toast.error("You don't have permission to process refunds.");
             return;
@@ -746,7 +779,7 @@ const SalesPage: React.FC = () => {
             note: `Return for INV #${saleToLoad.invoiceNumber}`
         }));
 
-        clearSaleState();
+        await clearSaleState();
         setCart(returnItems);
         setReturnForSaleId(saleToLoad.invoiceNumber);
         setLastSale(saleToLoad);
@@ -769,9 +802,9 @@ const SalesPage: React.FC = () => {
         setModal('receipt');
     };
     
-    const handleDiscard = () => {
+    const handleDiscard = async () => {
         if (cart.length > 0 && window.confirm("Are you sure you want to discard this transaction?")) {
-            clearSaleState();
+            await clearSaleState();
             toast.success('Transaction discarded.');
         } else if (cart.length === 0) {
              toast('No active transaction to discard.');
@@ -804,6 +837,7 @@ const SalesPage: React.FC = () => {
         if (cart.length > 0 && !window.confirm("This will discard your current cart. Are you sure?")) {
             return;
         }
+        await clearSaleState();
         try {
             const latestSale = await db.sales.orderBy('id').reverse().first();
             if (latestSale) {
@@ -861,7 +895,7 @@ const SalesPage: React.FC = () => {
                 <div className="flex justify-between items-center mb-2 pb-2 border-b border-secondary-200 dark:border-secondary-800">
                     <h2 className="text-xl font-bold">{returnForSaleId ? `Return for #${returnForSaleId}` : (editingSaleId ? `Editing INV #${editingSaleId}` : `Current Sale #${storeInfo?.invoiceCounter}`)}</h2>
                     <div className="flex items-center gap-2">
-                        {editingSaleId && <button onClick={clearSaleState} className="text-xs text-red-500 hover:underline">Cancel Edit</button>}
+                        {editingSaleId && <button onClick={() => clearSaleState()} className="text-xs text-red-500 hover:underline">Cancel Edit</button>}
                         <button onClick={handleUndo} title="Undo last item (Ctrl+Z)" className="p-2 text-secondary-500 hover:bg-secondary-100 dark:hover:bg-secondary-800 rounded-full"><Undo size={18}/></button>
                         <button onClick={handleEditPrevious} className="text-sm text-yellow-600 hover:underline">Edit Previous</button>
                         <button onClick={() => setModal('previousSales')} className="text-sm text-primary-600 hover:underline">Previous Sales</button>
