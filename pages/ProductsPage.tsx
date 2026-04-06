@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../services/db';
 import type { Product, Variant, Supplier, ProductCategory, ProductOption, Brand } from '../types';
-import { Plus, Edit, Trash2, X, Barcode as BarcodeIcon, Printer, Download, Copy, Check, ChevronsRight, Grid, Paperclip, ChevronDown, ChevronUp, FileText, Image as ImageIcon, ZoomIn, ZoomOut, Search, ChevronsLeft, ChevronRight, ChevronsRight as ChevronsRightIcon, ChevronsLeft as ChevronsLeftIcon, Palette, Text, ChevronLeft, Archive, Package, Filter, RotateCw } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Barcode as BarcodeIcon, Printer, Download, Copy, Check, ChevronsRight, Grid, Paperclip, ChevronDown, ChevronUp, FileText, Image as ImageIcon, ZoomIn, ZoomOut, Search, ChevronsLeft, ChevronRight, ChevronsRight as ChevronsRightIcon, ChevronsLeft as ChevronsLeftIcon, Palette, Text, ChevronLeft, Archive, Package, Filter, RotateCw, DollarSign } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import JsBarcode from 'jsbarcode';
 import { toast } from 'react-hot-toast';
@@ -17,20 +17,200 @@ import html2canvas from 'html2canvas';
 const BulkActionsBar: React.FC<{
     selectedCount: number;
     onEdit: () => void;
+    onEditPrices: () => void;
     onDelete: () => void;
     onPrint: () => void;
     onClear: () => void;
     canEdit: boolean;
     canDelete: boolean;
-}> = ({ selectedCount, onEdit, onDelete, onPrint, onClear, canEdit, canDelete }) => {
+}> = ({ selectedCount, onEdit, onEditPrices, onDelete, onPrint, onClear, canEdit, canDelete }) => {
     return (
         <div className="flex justify-between items-center bg-primary-500/10 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 border-2 border-primary-500 p-3 rounded-lg mb-4 animate-fadeIn">
             <span className="font-semibold">{selectedCount} product(s) selected</span>
             <div className="flex items-center gap-2 md:gap-4">
-                {canEdit && <button onClick={onEdit} className="flex items-center gap-2 hover:bg-primary-500/20 p-2 rounded-md transition-colors"><Edit size={16} /> <span className="hidden md:inline">Edit</span></button>}
+                {canEdit && (
+                    <>
+                        <button onClick={onEdit} className="flex items-center gap-2 hover:bg-primary-500/20 p-2 rounded-md transition-colors">
+                            <Edit size={16} /> <span className="hidden md:inline">Edit Info</span>
+                        </button>
+                        <button onClick={onEditPrices} className="flex items-center gap-2 hover:bg-primary-500/20 p-2 rounded-md transition-colors">
+                            <DollarSign size={16} /> <span className="hidden md:inline">Edit Prices</span>
+                        </button>
+                    </>
+                )}
                 {canDelete && <button onClick={onDelete} className="flex items-center gap-2 text-red-500 hover:bg-red-500/10 p-2 rounded-md transition-colors"><Trash2 size={16} /> <span className="hidden md:inline">Delete</span></button>}
                 <button onClick={onPrint} className="flex items-center gap-2 hover:bg-primary-500/20 p-2 rounded-md transition-colors"><BarcodeIcon size={16} /> <span className="hidden md:inline">Print Barcodes</span></button>
                 <button onClick={onClear} title="Clear selection" className="p-2 hover:bg-primary-500/20 rounded-full transition-colors"><X size={16} /></button>
+            </div>
+        </div>
+    );
+};
+
+const BulkPriceEditModal: React.FC<{
+    productIds: Set<number>;
+    onClose: () => void;
+}> = ({ productIds, onClose }) => {
+    const [costPriceAction, setCostPriceAction] = useState<'set' | 'increase_amount' | 'increase_percent'>('set');
+    const [costPriceValue, setCostPriceValue] = useState<number>(0);
+    const [sellingPriceAction, setSellingPriceAction] = useState<'set' | 'increase_amount' | 'increase_percent'>('set');
+    const [sellingPriceValue, setSellingPriceValue] = useState<number>(0);
+    const [updateCost, setUpdateCost] = useState(false);
+    const [updateSelling, setUpdateSelling] = useState(false);
+
+    const handleApplyChanges = async () => {
+        if (!updateCost && !updateSelling) {
+            toast.error("Please select at least one price to update.");
+            return;
+        }
+
+        const idsToUpdate = Array.from(productIds);
+        const originalProducts = await db.products.where('id').anyOf(idsToUpdate).toArray();
+
+        const updatedProducts = originalProducts.map(product => {
+            const newVariants = product.variants.map(variant => {
+                let newCostPrice = variant.costPrice;
+                let newSellingPrice = variant.sellingPrice;
+
+                if (updateCost) {
+                    if (costPriceAction === 'set') {
+                        newCostPrice = costPriceValue;
+                    } else if (costPriceAction === 'increase_amount') {
+                        newCostPrice += costPriceValue;
+                    } else if (costPriceAction === 'increase_percent') {
+                        newCostPrice *= (1 + costPriceValue / 100);
+                    }
+                }
+
+                if (updateSelling) {
+                    if (sellingPriceAction === 'set') {
+                        newSellingPrice = sellingPriceValue;
+                    } else if (sellingPriceAction === 'increase_amount') {
+                        newSellingPrice += sellingPriceValue;
+                    } else if (sellingPriceAction === 'increase_percent') {
+                        newSellingPrice *= (1 + sellingPriceValue / 100);
+                    }
+                }
+
+                return {
+                    ...variant,
+                    costPrice: parseFloat(Math.max(0, newCostPrice).toFixed(2)),
+                    sellingPrice: parseFloat(Math.max(0, newSellingPrice).toFixed(2))
+                };
+            });
+
+            return { ...product, variants: newVariants };
+        });
+
+        await db.products.bulkPut(updatedProducts);
+
+        toast.custom((t) => (
+            <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-secondary-50 dark:bg-secondary-900 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+                <div className="flex-1 w-0 p-4">
+                    <p className="font-medium">{idsToUpdate.length} products' prices updated!</p>
+                </div>
+                <div className="flex border-l border-secondary-200 dark:border-secondary-800">
+                    <button
+                        onClick={async () => {
+                            await db.products.bulkPut(originalProducts);
+                            toast.dismiss(t.id);
+                            toast.success('Price changes have been undone.');
+                        }}
+                        className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-primary-600 hover:text-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                        Undo
+                    </button>
+                </div>
+            </div>
+        ), { duration: 10000 });
+
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-secondary-50 dark:bg-secondary-900 rounded-2xl p-6 w-full max-w-2xl animate-slideInUp">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Bulk Edit Prices ({productIds.size} Products)</h2>
+                    <button type="button" onClick={onClose}><X /></button>
+                </div>
+                <p className="text-sm text-secondary-500 mb-6">Adjust cost and selling prices for all selected products and their variants.</p>
+                
+                <div className="space-y-6">
+                    {/* Cost Price Section */}
+                    <div className={`p-4 rounded-xl border-2 transition-all ${updateCost ? 'border-primary-500 bg-primary-500/5' : 'border-secondary-200 dark:border-secondary-800 bg-secondary-100/50 dark:bg-secondary-800/50'}`}>
+                        <label className="flex items-center gap-3 mb-4 cursor-pointer">
+                            <input type="checkbox" checked={updateCost} onChange={e => setUpdateCost(e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                            <span className="font-bold text-lg">Update Cost Price</span>
+                        </label>
+                        
+                        {updateCost && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+                                <select 
+                                    value={costPriceAction} 
+                                    onChange={e => setCostPriceAction(e.target.value as any)}
+                                    className="w-full p-3 bg-secondary-50 dark:bg-secondary-900 rounded-lg border border-secondary-300 dark:border-secondary-700 focus:ring-2 focus:ring-primary-500 outline-none"
+                                >
+                                    <option value="set">Set Fixed Price</option>
+                                    <option value="increase_amount">Increase/Decrease by Amount</option>
+                                    <option value="increase_percent">Increase/Decrease by Percentage (%)</option>
+                                </select>
+                                <div className="relative">
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        value={costPriceValue} 
+                                        onChange={e => setCostPriceValue(parseFloat(e.target.value) || 0)}
+                                        className="w-full p-3 bg-secondary-50 dark:bg-secondary-900 rounded-lg border border-secondary-300 dark:border-secondary-700 focus:ring-2 focus:ring-primary-500 outline-none"
+                                        placeholder="Value"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary-400">
+                                        {costPriceAction === 'increase_percent' ? '%' : ''}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Selling Price Section */}
+                    <div className={`p-4 rounded-xl border-2 transition-all ${updateSelling ? 'border-primary-500 bg-primary-500/5' : 'border-secondary-200 dark:border-secondary-800 bg-secondary-100/50 dark:bg-secondary-800/50'}`}>
+                        <label className="flex items-center gap-3 mb-4 cursor-pointer">
+                            <input type="checkbox" checked={updateSelling} onChange={e => setUpdateSelling(e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                            <span className="font-bold text-lg">Update Selling Price</span>
+                        </label>
+                        
+                        {updateSelling && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+                                <select 
+                                    value={sellingPriceAction} 
+                                    onChange={e => setSellingPriceAction(e.target.value as any)}
+                                    className="w-full p-3 bg-secondary-50 dark:bg-secondary-900 rounded-lg border border-secondary-300 dark:border-secondary-700 focus:ring-2 focus:ring-primary-500 outline-none"
+                                >
+                                    <option value="set">Set Fixed Price</option>
+                                    <option value="increase_amount">Increase/Decrease by Amount</option>
+                                    <option value="increase_percent">Increase/Decrease by Percentage (%)</option>
+                                </select>
+                                <div className="relative">
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        value={sellingPriceValue} 
+                                        onChange={e => setSellingPriceValue(parseFloat(e.target.value) || 0)}
+                                        className="w-full p-3 bg-secondary-50 dark:bg-secondary-900 rounded-lg border border-secondary-300 dark:border-secondary-700 focus:ring-2 focus:ring-primary-500 outline-none"
+                                        placeholder="Value"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary-400">
+                                        {sellingPriceAction === 'increase_percent' ? '%' : ''}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-secondary-200 dark:border-secondary-800">
+                    <button type="button" onClick={onClose} className="px-6 py-2 bg-secondary-200 dark:bg-secondary-700 rounded-lg font-medium">Cancel</button>
+                    <button onClick={handleApplyChanges} className="px-6 py-2 bg-primary-600 text-white rounded-lg font-medium shadow-lg shadow-primary-500/30 hover:bg-primary-700 transition-all">Apply Price Changes</button>
+                </div>
             </div>
         </div>
     );
@@ -228,6 +408,7 @@ const ProductsPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
     const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
+    const [isBulkPriceEditModalOpen, setIsBulkPriceEditModalOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
     const { hasPermission } = usePermissions();
@@ -442,6 +623,7 @@ const ProductsPage: React.FC = () => {
                 <BulkActionsBar
                     selectedCount={selectedProductIds.size}
                     onEdit={() => setIsBulkEditModalOpen(true)}
+                    onEditPrices={() => setIsBulkPriceEditModalOpen(true)}
                     onDelete={handleBulkDelete}
                     onPrint={() => setIsBarcodeModalOpen(true)}
                     onClear={() => setSelectedProductIds(new Set())}
@@ -530,6 +712,12 @@ const ProductsPage: React.FC = () => {
                     onClose={() => { setIsBulkEditModalOpen(false); setSelectedProductIds(new Set()); }}
                     suppliers={suppliers}
                     brands={brands}
+                />
+            )}
+            {isBulkPriceEditModalOpen && (
+                <BulkPriceEditModal
+                    productIds={selectedProductIds}
+                    onClose={() => { setIsBulkPriceEditModalOpen(false); setSelectedProductIds(new Set()); }}
                 />
             )}
         </div>
