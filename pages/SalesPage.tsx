@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, logActivity } from '../services/db';
 import type { Product, Variant, CartItem, Sale, SaleItem, Discount, StoreInfo, Payment, Customer, Voucher, HeldSale, User, StaffCommission, Shift, PaymentMethod } from '../types';
-import { Search, Plus, Minus, Trash2, X, DollarSign, Printer, Image, Save, FileText, Undo, Banknote, CreditCard, Wallet, Smartphone, Repeat, UserPlus, XCircle, Ticket, History, ArrowRight } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, X, DollarSign, Printer, Image, Save, FileText, Undo, Banknote, CreditCard, Wallet, Smartphone, Repeat, UserPlus, XCircle, Ticket, History, ArrowRight, Calendar, Clock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAppContext } from '../hooks/useAppContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -94,6 +94,7 @@ const SalesPage: React.FC = () => {
     const [returnForSaleId, setReturnForSaleId] = useState<number | null>(null);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [editingSaleId, setEditingSaleId] = useState<number | null>(null);
+    const [saleTimestamp, setSaleTimestamp] = useState<Date>(new Date());
     const { currentUser, storeInfo, activeShift } = useAppContext();
     const { hasPermission } = usePermissions();
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -454,6 +455,7 @@ const SalesPage: React.FC = () => {
         setReturnForSaleId(null);
         setSelectedCustomer(null);
         setEditingSaleId(null);
+        setSaleTimestamp(new Date());
     }, [editingSaleId]);
 
     const handleEditSale = useCallback(async (sale: Sale) => {
@@ -499,6 +501,7 @@ const SalesPage: React.FC = () => {
         setCart(cartItems);
         setEditingSaleId(sale.id!);
         setDiscountOnInvoice(sale.discountOnInvoice);
+        setSaleTimestamp(new Date(sale.timestamp));
         setExtraCharges(0); 
         setReturnForSaleId(null);
         
@@ -570,12 +573,10 @@ const SalesPage: React.FC = () => {
                 if (!currentStoreInfo) throw new Error("Store info not found.");
                 
                 let currentInvoiceNumber = currentStoreInfo.invoiceCounter;
-                let saleTimestamp = new Date();
                 if (editingSaleId) {
                     const originalSale = await tx.table('sales').get(editingSaleId);
                     if (originalSale) {
                         currentInvoiceNumber = originalSale.invoiceNumber;
-                        saleTimestamp = originalSale.timestamp;
                     }
                 }
 
@@ -897,7 +898,7 @@ const SalesPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                         {editingSaleId && <button onClick={() => clearSaleState()} className="text-xs text-red-500 hover:underline">Cancel Edit</button>}
                         <button onClick={handleUndo} title="Undo last item (Ctrl+Z)" className="p-2 text-secondary-500 hover:bg-secondary-100 dark:hover:bg-secondary-800 rounded-full"><Undo size={18}/></button>
-                        <button onClick={handleEditPrevious} className="text-sm text-yellow-600 hover:underline">Edit Previous</button>
+                        <button onClick={handleEditPrevious} className="text-sm text-yellow-600 hover:underline">Edit Last Sale</button>
                         <button onClick={() => setModal('previousSales')} className="text-sm text-primary-600 hover:underline">Previous Sales</button>
                     </div>
                 </div>
@@ -908,6 +909,32 @@ const SalesPage: React.FC = () => {
                         </span>
                     </div>
                 )}
+                
+                <div className="mb-3 p-3 bg-secondary-100 dark:bg-secondary-800/50 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold uppercase text-secondary-500 flex items-center gap-1">
+                            <Calendar size={12} /> Sale Date & Time
+                        </label>
+                        <button 
+                            onClick={() => setSaleTimestamp(new Date())}
+                            className="text-[10px] text-primary-600 hover:underline font-bold"
+                        >
+                            Set to Now
+                        </button>
+                    </div>
+                    <input 
+                        type="datetime-local" 
+                        value={format(saleTimestamp, "yyyy-MM-dd'T'HH:mm")}
+                        onChange={(e) => {
+                            const date = new Date(e.target.value);
+                            if (!isNaN(date.getTime())) {
+                                setSaleTimestamp(date);
+                            }
+                        }}
+                        className="w-full bg-transparent text-sm font-semibold focus:outline-none border-b border-secondary-300 dark:border-secondary-700 pb-1"
+                    />
+                </div>
+
                 <CustomerDisplay customer={selectedCustomer} onSelect={() => setModal('customerSearch')} onClear={() => setSelectedCustomer(null)} />
                 <div className="flex-1 overflow-y-auto -mr-3 pr-3">
                     {cart.length === 0 ? (
@@ -1415,7 +1442,8 @@ const PreviousSalesModal: React.FC<{onClose: () => void, currency: string, onVie
     const [searchTerm, setSearchTerm] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const sales = useLiveQuery(() => db.sales.reverse().toArray(), []);
+    const [limit, setLimit] = useState(50);
+    const sales = useLiveQuery(() => db.sales.orderBy('timestamp').reverse().limit(limit).toArray(), [limit]);
     const products = useLiveQuery(() => db.products.toArray());
 
     const productAndVariantMap = useMemo(() => {
@@ -1489,11 +1517,29 @@ const PreviousSalesModal: React.FC<{onClose: () => void, currency: string, onVie
                                 <span className={`font-bold ${sale.totalAmount < 0 ? 'text-red-500' : ''}`}>{currency}{sale.totalAmount.toFixed(2)}</span>
                                 <button onClick={() => onViewDetails(sale)} className="px-3 py-1.5 text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-lg">View</button>
                                 {canEdit && (
-                                    <button onClick={() => onEditSale(sale)} className="px-3 py-1.5 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg">Edit</button>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onEditSale(sale);
+                                        }} 
+                                        className="px-3 py-1.5 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-bold"
+                                    >
+                                        Edit
+                                    </button>
                                 )}
                             </div>
                          </div>
                      ))}
+                     {sales && sales.length >= limit && (
+                        <div className="text-center py-4">
+                            <button 
+                                onClick={() => setLimit(prev => prev + 50)}
+                                className="px-6 py-2 bg-secondary-200 dark:bg-secondary-700 hover:bg-secondary-300 dark:hover:bg-secondary-600 rounded-lg text-sm font-semibold transition"
+                            >
+                                Load More Older Invoices
+                            </button>
+                        </div>
+                     )}
                  </div>
             </div>
         </div>
